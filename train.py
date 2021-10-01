@@ -615,7 +615,7 @@ def main():
     group.add_argument('--gamma', help='Override R1 gamma', type=float, metavar='FLOAT')
     group.add_argument('--nkimg',  help='Override starting count', type=int, metavar='INT')
     group.add_argument('--kimg',  help='Override training duration', type=int, metavar='INT')
-    group.add_argument('--topk',  help='utilize top-k training', type=int, metavar='FLOAT')
+    group.add_argument('--topk',  help='utilize top-k training', type=float, metavar='FLOAT')
 
     group = parser.add_argument_group('discriminator augmentation')
     group.add_argument('--aug',    help='Augmentation mode (default: ada)', choices=['noaug', 'ada', 'fixed', 'adarv'])
