@@ -52,6 +52,7 @@ def setup_training_options(
     nkimg      = None, # Override starting count
     kimg       = None, # Override training duration: <int>, default = depends on cfg
     topk      = None, # set top-k percentage
+    topk_frac = None, # set top-k-frac percentage
 
     # Discriminator augmentation.
     aug        = None, # Augmentation mode: 'ada' (default), 'noaug', 'fixed', 'adarv'
@@ -274,6 +275,10 @@ def setup_training_options(
     	args.loss_args.G_top_k = True
     	args.loss_args.G_top_k_gamma = topk
     	args.loss_args.G_top_k_frac = 0.5
+    
+    if topk_frac is not None:
+        assert isinstance(topk_frac, float)
+        args.loss_args.G_top_k_frac = topk_frac
 
     # ---------------------------------------------------
     # Discriminator augmentation: aug, p, target, augpipe
@@ -615,7 +620,8 @@ def main():
     group.add_argument('--gamma', help='Override R1 gamma', type=float, metavar='FLOAT')
     group.add_argument('--nkimg',  help='Override starting count', type=int, metavar='INT')
     group.add_argument('--kimg',  help='Override training duration', type=int, metavar='INT')
-    group.add_argument('--topk',  help='utilize top-k training', type=int, metavar='FLOAT')
+    group.add_argument('--topk',  help='utilize top-k training', type=float, metavar='FLOAT')
+    group.add_argument('--topk_frac', help="topk_fraction", type=float, metavar="FLOAT")
 
     group = parser.add_argument_group('discriminator augmentation')
     group.add_argument('--aug',    help='Augmentation mode (default: ada)', choices=['noaug', 'ada', 'fixed', 'adarv'])
