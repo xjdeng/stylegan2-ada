@@ -1,25 +1,3 @@
-projector.py
-Who has access
-Not shared
-System properties
-Type
-Text
-Size
-13 KB
-Storage used
-13 KB
-Location
-stylegan2-ada
-Owner
-me
-Modified
-Jan 12, 2022 by me
-Opened
-9:37 AM by me
-Created
-Sep 13, 2021 with Google Drive for desktop
-Add a description
-Viewers can download
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
