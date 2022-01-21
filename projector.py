@@ -1,3 +1,25 @@
+projector.py
+Who has access
+Not shared
+System properties
+Type
+Text
+Size
+13 KB
+Storage used
+13 KB
+Location
+stylegan2-ada
+Owner
+me
+Modified
+Jan 12, 2022 by me
+Opened
+9:37 AM by me
+Created
+Sep 13, 2021 with Google Drive for desktop
+Add a description
+Viewers can download
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
@@ -22,7 +44,7 @@ import dnnlib
 import dnnlib.tflib as tflib
 
 class Projector:
-    def __init__(self):
+    def __init__(self, seed):
         self.num_steps                  = 1000
         self.dlatent_avg_samples        = 10000
         self.initial_learning_rate      = 0.1
@@ -32,6 +54,7 @@ class Projector:
         self.noise_ramp_length          = 0.75
         self.regularize_noise_weight    = 1e5
         self.verbose                    = True
+        self.seed = seed
 
         self._Gs                    = None
         self._minibatch_size        = None
@@ -67,7 +90,7 @@ class Projector:
 
         # Compute dlatent stats.
         self._info(f'Computing W midpoint and stddev using {self.dlatent_avg_samples} samples...')
-        latent_samples = np.random.RandomState(123).randn(self.dlatent_avg_samples, *self._Gs.input_shapes[0][1:])
+        latent_samples = np.random.RandomState(self.seed).randn(self.dlatent_avg_samples, *self._Gs.input_shapes[0][1:])
         dlatent_samples = self._Gs.components.mapping.run(latent_samples, None)  # [N, L, C]
         dlatent_samples = dlatent_samples[:, :1, :].astype(np.float32)           # [N, 1, C]
         self._dlatent_avg = np.mean(dlatent_samples, axis=0, keepdims=True)      # [1, 1, C]
@@ -201,8 +224,20 @@ class Projector:
         return tflib.run(self._images_uint8_expr, {self._dlatent_noise_in: 0})
 
 #----------------------------------------------------------------------------
-
-def project(network_pkl: str, target_fname: str, outdir: str, save_video: bool, seed: int):
+def expand2square(pil_img, background_color): #https://note.nkmk.me/en/python-pillow-add-margin-expand-canvas/
+    width, height = pil_img.size
+    if width == height:
+        return pil_img
+    elif width > height:
+        result = PIL.Image.new(pil_img.mode, (width, width), background_color)
+        result.paste(pil_img, (0, (width - height) // 2))
+        return result
+    else:
+        result = PIL.Image.new(pil_img.mode, (height, height), background_color)
+        result.paste(pil_img, ((height - width) // 2, 0))
+        return result
+        
+def project(network_pkl: str, target_fname: str, outdir: str, save_video: bool, seed: int, frames: int, side_by_side:int, fps:int):
     # Load networks.
     tflib.init_tf({'rnd.np_random_seed': seed})
     print('Loading networks from "%s"...' % network_pkl)
@@ -213,14 +248,15 @@ def project(network_pkl: str, target_fname: str, outdir: str, save_video: bool, 
     target_pil = PIL.Image.open(target_fname)
     w, h = target_pil.size
     s = min(w, h)
-    target_pil = target_pil.crop(((w - s) // 2, (h - s) // 2, (w + s) // 2, (h + s) // 2))
+    #target_pil = target_pil.crop(((w - s) // 2, (h - s) // 2, (w + s) // 2, (h + s) // 2))
+    target_pil = expand2square(target_pil, (255,255,255))
     target_pil= target_pil.convert('RGB')
     target_pil = target_pil.resize((Gs.output_shape[3], Gs.output_shape[2]), PIL.Image.ANTIALIAS)
     target_uint8 = np.array(target_pil, dtype=np.uint8)
     target_float = target_uint8.astype(np.float32).transpose([2, 0, 1]) * (2 / 255) - 1
 
     # Initialize projector.
-    proj = Projector()
+    proj = Projector(seed)
     proj.set_network(Gs)
     proj.start([target_float])
 
@@ -229,19 +265,23 @@ def project(network_pkl: str, target_fname: str, outdir: str, save_video: bool, 
     target_pil.save(f'{outdir}/target.png')
     writer = None
     if save_video:
-        writer = imageio.get_writer(f'{outdir}/proj.mp4', mode='I', fps=60, codec='libx264', bitrate='16M')
+        writer = imageio.get_writer(f'{outdir}/proj_{seed}.mp4', mode='I', fps=fps, codec='libx264', bitrate='16M')
 
     # Run projector.
-    with tqdm.trange(proj.num_steps) as t:
+    #with tqdm.trange(proj.num_steps) as t:
+    with tqdm.trange(frames) as t:
         for step in t:
             assert step == proj.cur_step
             if writer is not None:
-                writer.append_data(np.concatenate([target_uint8, proj.images_uint8[0]], axis=1))
+                if side_by_side:
+                    writer.append_data(np.concatenate([target_uint8, proj.images_uint8[0]], axis=1))
+                else:
+                    writer.append_data(proj.images_uint8[0])
             dist, loss = proj.step()
             t.set_postfix(dist=f'{dist[0]:.4f}', loss=f'{loss:.2f}')
 
     # Save results.
-    PIL.Image.fromarray(proj.images_uint8[0], 'RGB').save(f'{outdir}/proj.png')
+    PIL.Image.fromarray(proj.images_uint8[0], 'RGB').save(f'{outdir}/proj_{seed}.png')
     np.savez(f'{outdir}/dlatents.npz', dlatents=proj.dlatents)
     if writer is not None:
         writer.close()
@@ -279,6 +319,9 @@ def main():
     parser.add_argument('--save-video',  help='Save an mp4 video of optimization progress (default: true)', type=_str_to_bool, default=True)
     parser.add_argument('--seed',        help='Random seed', type=int, default=303)
     parser.add_argument('--outdir',      help='Where to save the output images', required=True, metavar='DIR')
+    parser.add_argument('--frames',        help='Number of Frames', type=int, default=100)
+    parser.add_argument('--side_by_side', help='Display original in video', type=int, default=0)
+    parser.add_argument('--fps', help='FPS', type=int, default=2)
     project(**vars(parser.parse_args()))
 
 #----------------------------------------------------------------------------
