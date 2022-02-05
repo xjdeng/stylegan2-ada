@@ -53,6 +53,7 @@ def setup_training_options(
     kimg       = None, # Override training duration: <int>, default = depends on cfg
     topk      = None, # set top-k percentage
     topk_frac = None, # set top-k-frac percentage
+    batch      = None, # Override batch size: <int>
 
     # Discriminator augmentation.
     aug        = None, # Augmentation mode: 'ada' (default), 'noaug', 'fixed', 'adarv'
@@ -269,6 +270,14 @@ def setup_training_options(
             raise UserError('--kimg must be at least 1')
         desc += f'-kimg{kimg:d}'
         args.total_kimg = kimg
+        
+    if batch is not None:
+        assert isinstance(batch, int)
+        if not (batch >= 1 and batch % gpus == 0):
+            raise UserError('--batch must be at least 1 and divisible by --gpus')
+        desc += f'-batch{batch}'
+        args.minibatch_size = batch
+        args.minibatch_gpu = batch // gpus
 
     if topk is not None:
     	assert isinstance(topk, float)
@@ -622,6 +631,7 @@ def main():
     group.add_argument('--kimg',  help='Override training duration', type=int, metavar='INT')
     group.add_argument('--topk',  help='utilize top-k training', type=float, metavar='FLOAT')
     group.add_argument('--topk_frac', help="topk_fraction", type=float, metavar="FLOAT")
+    group.add_argument('--batch', help="batch", type=int, metavar="INT")
 
     group = parser.add_argument_group('discriminator augmentation')
     group.add_argument('--aug',    help='Augmentation mode (default: ada)', choices=['noaug', 'ada', 'fixed', 'adarv'])
